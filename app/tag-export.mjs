@@ -1,6 +1,7 @@
 import axios from "axios";
 import fs from "fs";
 import { fileTypeFromStream } from "file-type";
+import iconvlite from "iconv-lite";
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
@@ -49,7 +50,8 @@ async function downloadFile(url, filename) {
 }
 
 async function renameFileExt(filename) {
-  const stream = fs.createReadStream(filename);
+  const stream = fs.createReadStream(filename)
+    .pipe(iconvlite.decodeStream('win1252'))
   const type = await fileTypeFromStream(stream);
   if (!type) return;
   // extension overrides
@@ -89,7 +91,7 @@ async function main() {
         break;
       }
     }
-    if (fileExists) tagQueue.push(tag);
+    if (!fileExists) tagQueue.push(tag);
     // if url differs, add to queue
     if (!oldTags.find((oldTag) => oldTag.image_path === tag.image_path))
       tagQueue.push(tag);
