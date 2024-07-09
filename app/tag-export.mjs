@@ -1,7 +1,6 @@
 import axios from "axios";
 import fs from "fs";
 import { fileTypeFromStream } from "file-type";
-import iconvlite from "iconv-lite";
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
