@@ -1,0 +1,15 @@
+services:
+  tag-sync:
+    container_name: tag-sync
+    image: ghcr.io/feederbox826/stash-tag-sync
+    user: 1000:1000
+    environment:
+      - APIKEY=eyJ
+      - STASH_URL=http://docker.local:9999
+      - TAG_PATH=/tags
+      - CACHE_PATH=/cache
+    volumes:
+      - ./:/tags
+      - ./tag-sync:/cache
+    extra_hosts:
+      - "docker.local:192.168.0.100"
