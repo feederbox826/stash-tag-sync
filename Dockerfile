@@ -3,8 +3,7 @@ WORKDIR /app
 RUN apk add --no-cache \
     nodejs \
     npm && \
-    cd /app && \
-    npm i axios file-type
+    npm i
 
 COPY app /app/
 CMD ["node", "tag-export.mjs"]

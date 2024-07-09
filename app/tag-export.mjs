@@ -1,6 +1,7 @@
 import axios from "axios";
 import fs from "fs";
 import { fileTypeFromStream } from "file-type";
+import iconvlite from "iconv-lite";
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
@@ -58,12 +59,15 @@ async function renameFileExt(filename) {
   fs.renameSync(filename, newname);
 }
 
-const cleanFileName = (filename) =>
-  filename
+const cleanFileName = (filename) => {
+  return iconvlite.encode(filename
     .trim()
     .replace(/\./g, "")
     .replace(/\:/g, "-")
-    .replace(/ |\/|\\/g, "_");
+    .replace(/ |\/|\\/g, "_")
+  , "utf-8").toString();
+}
+
 
 // main function
 async function main() {
