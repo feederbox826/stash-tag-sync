@@ -59,14 +59,15 @@ async function renameFileExt(filename) {
   fs.renameSync(filename, newname);
 }
 
-const cleanFileName = (filename) => {
-  return iconvlite.encode(filename
+// win-1252 conversion from https://stackoverflow.com/a/73127563
+const cleanFileName = (filename) =>
+  filename
     .trim()
     .replace(/\./g, "")
     .replace(/\:/g, "-")
     .replace(/ |\/|\\/g, "_")
-  , "utf-8").toString();
-}
+    .replace(/%u(....)/g, (m,p)=>String.fromCharCode("0x"+p))
+    .replace(/%(..)/g, (m,p)=>String.fromCharCode("0x"+p))
 
 
 // main function
