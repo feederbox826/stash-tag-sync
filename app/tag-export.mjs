@@ -1,5 +1,5 @@
 import axios from "axios";
-import fs from "fs";
+import fs from "fs/promises";
 import { fileTypeFromFile } from "file-type";
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
@@ -35,19 +35,15 @@ async function getAllTags() {
 }
 
 async function downloadFile(url, filename) {
-  const writer = fs.createWriteStream(filename);
   const response = await axios({
     url,
     method: "GET",
-    responseType: "stream",
+    responseType: "arraybuffer",
     responseEncoding: "binary",
     headers: { ApiKey: APIKEY },
   });
-  response.data.pipe(writer);
-  return new Promise((resolve, reject) => {
-    writer.on("finish", resolve);
-    writer.on("error", reject);
-  });
+  const bufferData = Buffer.from(response.data, "binary");
+  return await fs.writeFile(filename, bufferData);
 }
 
 async function renameFileExt(filename) {
@@ -59,7 +55,7 @@ async function renameFileExt(filename) {
   // extension overrides
   const ext = type.ext == "xml" ? "svg" : type.ext;
   const newname = `${filename}.${ext}`;
-  fs.renameSync(filename, newname);
+  fs.rename(filename, newname);
 }
 
 // win-1252 conversion from https://stackoverflow.com/a/73127563
@@ -72,15 +68,14 @@ const cleanFileName = (filename) =>
     .replace(/%u(....)/g, (m,p)=>String.fromCharCode("0x"+p))
     .replace(/%(..)/g, (m,p)=>String.fromCharCode("0x"+p))
 
-
 // main function
 async function main() {
   const newTags = await getAllTags();
   // save tags to cache
-  fs.writeFileSync(TEMP_TAG_FILE_PATH, JSON.stringify(newTags));
-  const oldTags = fs.existsSync(TAG_FILE_PATH)
-    ? JSON.parse(fs.readFileSync(TAG_FILE_PATH))
-    : [];
+  fs.writeFile(TEMP_TAG_FILE_PATH, JSON.stringify(newTags));
+  const oldTags = await fs.access(TAG_FILE_PATH)
+    .then(async () => JSON.parse(await fs.readFile(TAG_FILE_PATH)))
+    .catch(() => []);
   let tagQueue = [];
   for (const tag of newTags) {
     // skip if default
@@ -91,21 +86,26 @@ async function main() {
     let filePath = false;
     for (const ext of FILETYPES) {
       const filename = `${TAG_PATH}/${tagName}.${ext}`;
-      if (fs.existsSync(filename)) {
+      const isFile = await fs.access(filename)
+        .then(() => true)
+        .catch(() => false)
+      if (isFile) {
         filePath = filename;
         break;
       }
     }
     // if raw file exists, delete
-    if (fs.existsSync(`${TAG_PATH}/${tagName}`)) fs.unlinkSync(`${TAG_PATH}/${tagName}`);
+    fs.access(`${TAG_PATH}/${tagName}`)
+      .then(() => fs.unlink(`${TAG_PATH}/${tagName}`))
+      .catch(() => false);
     if (!filePath) tagQueue.push(tag);
     // if url differs, add to queue and delete old tag
     if (!oldTags.find((oldTag) => oldTag.image_path === tag.image_path)) {
-      if (filePath && DELETE_EXISTING == "TRUE") fs.unlinkSync(filePath);
+      if (filePath && DELETE_EXISTING == "TRUE") fs.unlink(filePath);
       tagQueue.push(tag);
     }
   }
-  fs.renameSync(TEMP_TAG_FILE_PATH, TAG_FILE_PATH);
+  fs.rename(TEMP_TAG_FILE_PATH, TAG_FILE_PATH);
   console.log("Tag queue length:", tagQueue.length);
   for (const tag of tagQueue) {
     console.log(tag);
