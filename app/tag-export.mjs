@@ -1,7 +1,6 @@
 import axios from "axios";
 import fs from "fs";
-import { fileTypeFromStream } from "file-type";
-import iconvlite from "iconv-lite";
+import { fileTypeFromFile } from "file-type";
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
 
@@ -41,6 +40,7 @@ async function downloadFile(url, filename) {
     url,
     method: "GET",
     responseType: "stream",
+    responseEncoding: "binary",
     headers: { ApiKey: APIKEY },
   });
   response.data.pipe(writer);
@@ -51,9 +51,7 @@ async function downloadFile(url, filename) {
 }
 
 async function renameFileExt(filename) {
-  const stream = fs.createReadStream(filename)
-    .pipe(iconvlite.decodeStream('win1252'))
-  const type = await fileTypeFromStream(stream);
+  const type = await fileTypeFromFile(filename);
   if (!type) {
     console.error("File type not found:", filename);
     return;
@@ -80,7 +78,9 @@ async function main() {
   const newTags = await getAllTags();
   // save tags to cache
   fs.writeFileSync(TEMP_TAG_FILE_PATH, JSON.stringify(newTags));
-  const oldTags = JSON.parse(fs.readFileSync(TAG_FILE_PATH));
+  const oldTags = fs.existsSync(TAG_FILE_PATH)
+    ? JSON.parse(fs.readFileSync(TAG_FILE_PATH))
+    : [];
   let tagQueue = [];
   for (const tag of newTags) {
     // skip if default
@@ -96,6 +96,8 @@ async function main() {
         break;
       }
     }
+    // if raw file exists, delete
+    if (fs.existsSync(`${TAG_PATH}/${tagName}`)) fs.unlinkSync(`${TAG_PATH}/${tagName}`);
     if (!filePath) tagQueue.push(tag);
     // if url differs, add to queue and delete old tag
     if (!oldTags.find((oldTag) => oldTag.image_path === tag.image_path)) {
