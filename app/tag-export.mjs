@@ -9,6 +9,7 @@ const APIKEY = process.env.STASH_APIKEY;
 const STASH_URL = process.env.STASH_URL;
 const TAG_PATH = process.env.TAG_PATH || "./tags";
 const CACHE_PATH = process.env.CACHE_PATH || "./cache";
+const DELETE_EXISTING = process.env.DELETE_EXISTING || false;
 const FILETYPES = ["jpg", "png", "webp", "svg", "webm"];
 const TAG_FILE_PATH = `${CACHE_PATH}/tags.json`;
 const TEMP_TAG_FILE_PATH = `${CACHE_PATH}/temp-tags.json`;
@@ -53,7 +54,10 @@ async function renameFileExt(filename) {
   const stream = fs.createReadStream(filename)
     .pipe(iconvlite.decodeStream('win1252'))
   const type = await fileTypeFromStream(stream);
-  if (!type) return;
+  if (!type) {
+    console.error("File type not found:", filename);
+    return;
+  }
   // extension overrides
   const ext = type.ext == "xml" ? "svg" : type.ext;
   const newname = `${filename}.${ext}`;
@@ -84,17 +88,20 @@ async function main() {
     // if DNE, add to queue
     const tagName = cleanFileName(tag.name);
     // check for jpg, png, webm
-    let fileExists = false;
+    let filePath = false;
     for (const ext of FILETYPES) {
-      if (fs.existsSync(`${TAG_PATH}/${tagName}.${ext}`)) {
-        fileExists = true;
+      const filename = `${TAG_PATH}/${tagName}.${ext}`;
+      if (fs.existsSync(filename)) {
+        filePath = filename;
         break;
       }
     }
-    if (!fileExists) tagQueue.push(tag);
-    // if url differs, add to queue
-    if (!oldTags.find((oldTag) => oldTag.image_path === tag.image_path))
+    if (!filePath) tagQueue.push(tag);
+    // if url differs, add to queue and delete old tag
+    if (!oldTags.find((oldTag) => oldTag.image_path === tag.image_path)) {
+      if (filePath && DELETE_EXISTING == "TRUE") fs.unlinkSync(filePath);
       tagQueue.push(tag);
+    }
   }
   fs.renameSync(TEMP_TAG_FILE_PATH, TAG_FILE_PATH);
   console.log("Tag queue length:", tagQueue.length);

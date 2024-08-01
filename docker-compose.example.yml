@@ -8,6 +8,7 @@ services:
       - STASH_URL=http://docker.local:9999
       - TAG_PATH=/tags
       - CACHE_PATH=/cache
+      - DELETE_EXISTING=false
     volumes:
       - ./:/tags
       - ./tag-sync:/cache
