@@ -1,5 +1,6 @@
 import axios from "axios";
 import fs from "fs/promises";
+import * as https from "https";
 import { fileTypeFromFile } from "file-type";
 
 const APIKEY = process.env.STASH_APIKEY;
