@@ -2,8 +2,6 @@ import axios from "axios";
 import fs from "fs/promises";
 import { fileTypeFromFile } from "file-type";
 
-process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-
 const APIKEY = process.env.STASH_APIKEY;
 const STASH_URL = process.env.STASH_URL;
 const TAG_PATH = process.env.TAG_PATH || "./tags";
@@ -12,6 +10,16 @@ const DELETE_EXISTING = process.env.DELETE_EXISTING || false;
 const FILETYPES = ["jpg", "png", "webp", "svg", "webm"];
 const TAG_FILE_PATH = `${CACHE_PATH}/tags.json`;
 const TEMP_TAG_FILE_PATH = `${CACHE_PATH}/temp-tags.json`;
+
+// setup axios agenw tihout TLS verification
+const agent = axios.create({
+  headers: {
+    'ApiKey': APIKEY
+  },
+  httpsAgent: new https.Agent({
+    rejectUnauthorized: false
+  })
+})
 
 // get all performers
 async function getAllTags() {
@@ -22,25 +30,19 @@ async function getAllTags() {
             image_path
             id
     }}}`;
-  const response = await axios.post(
+  const response = await agent.post(
     STASH_URL,
     { query },
-    {
-      headers: {
-        ApiKey: APIKEY,
-      },
-    },
   );
   return response.data.data.findTags.tags;
 }
 
 async function downloadFile(url, filename) {
-  const response = await axios({
+  const response = await agent.get({
     url,
     method: "GET",
     responseType: "arraybuffer",
     responseEncoding: "binary",
-    headers: { ApiKey: APIKEY },
   });
   const bufferData = Buffer.from(response.data, "binary");
   return await fs.writeFile(filename, bufferData);
