@@ -39,8 +39,7 @@ async function getAllTags() {
 }
 
 async function downloadFile(url, filename) {
-  const response = await agent.get({
-    url,
+  const response = await agent.get(url, {
     method: "GET",
     responseType: "arraybuffer",
     responseEncoding: "binary",
