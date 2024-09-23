@@ -110,13 +110,17 @@ async function main() {
   fs.rename(TEMP_TAG_FILE_PATH, TAG_FILE_PATH);
   console.log("Tag queue length:", tagQueue.length);
   for (const tag of tagQueue) {
-    console.log(tag);
-    // download file
-    const fileName = `${TAG_PATH}/${cleanFileName(tag.name)}`;
-    const url = tag.image_path;
-    await downloadFile(url, fileName);
-    // rename file extension
-    await renameFileExt(fileName);
+    try {
+      console.log(tag);
+      // download file
+      const fileName = `${TAG_PATH}/${cleanFileName(tag.name)}`;
+      const url = tag.image_path;
+      await downloadFile(url, fileName);
+      // rename file extension
+      await renameFileExt(fileName);
+    } catch(err) {
+      console.error("Error downloading file:", tag, err);
+    }
   }
 }
 main();
