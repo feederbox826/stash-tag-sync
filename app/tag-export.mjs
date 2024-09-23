@@ -34,7 +34,7 @@ async function getAllTags() {
   const response = await agent.post(
     STASH_URL,
     { query },
-  );
+  ).catch(err => err.response);
   return response.data.data.findTags.tags;
 }
 
@@ -43,7 +43,7 @@ async function downloadFile(url, filename) {
     method: "GET",
     responseType: "arraybuffer",
     responseEncoding: "binary",
-  });
+  }).catch(err => err.response);
   const bufferData = Buffer.from(response.data, "binary");
   return await fs.writeFile(filename, bufferData);
 }
