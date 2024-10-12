@@ -58,6 +58,7 @@ async function renameFileExt(filename) {
   const ext = type.ext == "xml" ? "svg" : type.ext;
   const newname = `${filename}.${ext}`;
   fs.rename(filename, newname);
+  return newname;
 }
 
 // win-1252 conversion from https://stackoverflow.com/a/73127563
@@ -70,8 +71,17 @@ const cleanFileName = (filename) =>
     .replace(/%u(....)/g, (m,p)=>String.fromCharCode("0x"+p))
     .replace(/%(..)/g, (m,p)=>String.fromCharCode("0x"+p))
 
+const saniTagExports = (tagExports) => {
+  // dedupe
+  const deduped = [...new Set(tagExports)];
+  // remove trailing `./` and reduce to basename
+  return deduped.map((tag) => ({ name: tag.name, filename: tag.filename.split("/").pop() }));
+}
+
 // main function
 async function main() {
+  // create tag inventory
+  const tagInventory = [];
   const newTags = await getAllTags();
   // save tags to cache
   fs.writeFile(TEMP_TAG_FILE_PATH, JSON.stringify(newTags));
@@ -93,6 +103,8 @@ async function main() {
         .catch(() => false)
       if (isFile) {
         filePath = filename;
+        // push to tag inventory as existing file
+        tagInventory.push({ name: tag.name, filename: filePath });
         break;
       }
     }
@@ -117,10 +129,14 @@ async function main() {
       const url = tag.image_path;
       await downloadFile(url, fileName);
       // rename file extension
-      await renameFileExt(fileName);
+      const extFileName = await renameFileExt(fileName);
+      // push to tag inventory
+      tagInventory.push({ name: tag.name, filename: extFileName });
     } catch(err) {
       console.error("Error downloading file:", tag, err);
     }
   }
+  // finally, write tag inventory
+  fs.writeFile(`${CACHE_PATH}/tags-export.json`, JSON.stringify(saniTagExports(tagInventory)));
 }
 main();
