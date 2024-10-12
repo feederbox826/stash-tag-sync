@@ -11,6 +11,7 @@ const DELETE_EXISTING = process.env.DELETE_EXISTING || false;
 const FILETYPES = ["jpg", "png", "webp", "svg", "webm"];
 const TAG_FILE_PATH = `${CACHE_PATH}/tags.json`;
 const TEMP_TAG_FILE_PATH = `${CACHE_PATH}/temp-tags.json`;
+const TAG_EXPORT_PATH = process.env.TAG_EXPORT_PATH || `${CACHE_PATH}/tags-export.json`;
 
 // setup axios agenw tihout TLS verification
 const agent = axios.create({
@@ -137,6 +138,6 @@ async function main() {
     }
   }
   // finally, write tag inventory
-  fs.writeFile(`${CACHE_PATH}/tags-export.json`, JSON.stringify(saniTagExports(tagInventory)));
+  fs.writeFile(TAG_EXPORT_PATH, JSON.stringify(saniTagExports(tagInventory)));
 }
 main();
