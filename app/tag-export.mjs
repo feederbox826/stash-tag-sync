@@ -8,7 +8,8 @@ const STASH_URL = process.env.STASH_URL;
 const TAG_PATH = process.env.TAG_PATH || "./tags";
 const CACHE_PATH = process.env.CACHE_PATH || "./cache";
 const DELETE_EXISTING = process.env.DELETE_EXISTING || false;
-const FILETYPES = ["jpg", "png", "webp", "svg", "webm"];
+const IMG_FILETYPES = ["jpg", "png", "webp", "svg"];
+const VID_FILETYPES = ["mp4", "webm"];
 const TAG_FILE_PATH = `${CACHE_PATH}/tags.json`;
 const TEMP_TAG_FILE_PATH = `${CACHE_PATH}/temp-tags.json`;
 const TAG_EXPORT_PATH = process.env.TAG_EXPORT_PATH || `${CACHE_PATH}/tags-export.json`;
@@ -72,13 +73,19 @@ const cleanFileName = (filename) =>
     .replace(/%u(....)/g, (m,p)=>String.fromCharCode("0x"+p))
     .replace(/%(..)/g, (m,p)=>String.fromCharCode("0x"+p))
 
-const saniTagExports = (tagExports) =>
+const saniTagExports = (tagExports) => {
   // remove trailing `./` and reduce to basename
-  tagExports.map((tag) => ({ name: tag.name, filename: tag.filename.split("/").pop() }));
+  const saniFilename = (filename) => filename ? filename.split("/").pop() : "";
+  for (const [key, value] of Object.entries(tagExports)) {
+    tagExports[key]["img"] = saniFilename(value["img"]);
+    tagExports[key]["vid"] = saniFilename(value["vid"]);
+  }
+  return tagExports;
+}
 
-const findFiles = async(tagName) => {
+const findFiles = async(tagName, searcharr) => {
   const files = [];
-  for (const ext of FILETYPES) {
+  for (const ext of searcharr) {
     const filename = `${TAG_PATH}/${tagName}.${ext}`;
     const isFile = await fs.access(filename)
       .then(() => true)
@@ -91,7 +98,7 @@ const findFiles = async(tagName) => {
 // main function
 async function main() {
   // create tag inventory
-  const tagInventory = [];
+  const tagInventory = {};
   const newTags = await getAllTags();
   // save tags to cache
   fs.writeFile(TEMP_TAG_FILE_PATH, JSON.stringify(newTags));
@@ -105,16 +112,24 @@ async function main() {
     // if DNE, add to queue
     const tagName = cleanFileName(tag.name);
     // check for existing files
-    const files = await findFiles(tagName);
-    files.forEach((file) => tagInventory.push({ name: tag.name, filename: file }));
+    const imgFiles = await findFiles(tagName, IMG_FILETYPES);
+    const vidFiles = await findFiles(tagName, VID_FILETYPES);
+    if (imgFiles.length > 1) {
+      console.error("Multiple image files found:", imgFiles);
+    }
+    if (vidFiles.length > 1) {
+      console.error("Multiple video files found:", vidFiles);
+    }
+    const hasFiles = imgFiles.length || vidFiles.length;
+    tagInventory[tag.name] = { img: imgFiles[0], vid: vidFiles[0] };
     // if raw file exists, delete (erroneous or leftover)
     fs.access(`${TAG_PATH}/${tagName}`)
       .then(() => fs.unlink(`${TAG_PATH}/${tagName}`))
       .catch(() => false);
-    if (!files) tagQueue.push(tag);
+    if (!hasFiles) tagQueue.push(tag);
     // if url differs, add to queue
     if (!oldTags.find((oldTag) => oldTag.image_path === tag.image_path)) {
-      if (files && DELETE_EXISTING == "TRUE") tagQueue.push(tag);
+      if (hasFiles && DELETE_EXISTING == "TRUE") tagQueue.push(tag);
     }
   }
   fs.rename(TEMP_TAG_FILE_PATH, TAG_FILE_PATH);
@@ -130,7 +145,9 @@ async function main() {
       // ovewrites files of existing type, leaves previous types alone
       const extFileName = await renameFileExt(fileName);
       // push to tag inventory
-      tagInventory.push({ name: tag.name, filename: extFileName });
+      const ext = extFileName.split(".").pop()
+      const fileType = VID_FILETYPES.includes(ext) ? "vid" : "img";
+      tagInventory[tag.name][fileType] = extFileName;
     } catch(err) {
       console.error("Error downloading file:", tag, err);
     }
