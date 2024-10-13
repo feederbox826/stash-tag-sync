@@ -13,7 +13,7 @@ const TAG_FILE_PATH = `${CACHE_PATH}/tags.json`;
 const TEMP_TAG_FILE_PATH = `${CACHE_PATH}/temp-tags.json`;
 const TAG_EXPORT_PATH = process.env.TAG_EXPORT_PATH || `${CACHE_PATH}/tags-export.json`;
 
-// setup axios agenw tihout TLS verification
+// setup axios agent without TLS verification
 const agent = axios.create({
   headers: {
     'ApiKey': APIKEY
@@ -72,11 +72,20 @@ const cleanFileName = (filename) =>
     .replace(/%u(....)/g, (m,p)=>String.fromCharCode("0x"+p))
     .replace(/%(..)/g, (m,p)=>String.fromCharCode("0x"+p))
 
-const saniTagExports = (tagExports) => {
-  // dedupe
-  const deduped = [...new Set(tagExports)];
+const saniTagExports = (tagExports) =>
   // remove trailing `./` and reduce to basename
-  return deduped.map((tag) => ({ name: tag.name, filename: tag.filename.split("/").pop() }));
+  deduped.map((tag) => ({ name: tag.name, filename: tag.filename.split("/").pop() }));
+
+const findFiles = async(tagName) => {
+  const files = [];
+  for (const ext of FILETYPES) {
+    const filename = `${TAG_PATH}/${tagName}.${ext}`;
+    const isFile = await fs.access(filename)
+      .then(() => true)
+      .catch(() => false)
+    if (isFile) files.push(filename);
+  }
+  return files;
 }
 
 // main function
@@ -95,29 +104,17 @@ async function main() {
     if (tag.image_path.endsWith("&default=true")) continue;
     // if DNE, add to queue
     const tagName = cleanFileName(tag.name);
-    // check for jpg, png, webm
-    let filePath = false;
-    for (const ext of FILETYPES) {
-      const filename = `${TAG_PATH}/${tagName}.${ext}`;
-      const isFile = await fs.access(filename)
-        .then(() => true)
-        .catch(() => false)
-      if (isFile) {
-        filePath = filename;
-        // push to tag inventory as existing file
-        tagInventory.push({ name: tag.name, filename: filePath });
-        break;
-      }
-    }
-    // if raw file exists, delete
+    // check for existing files
+    const files = await findFiles(tagName);
+    files.forEach((file) => tagInventory.push({ name: tag.name, filename: file }));
+    // if raw file exists, delete (erroneous or leftover)
     fs.access(`${TAG_PATH}/${tagName}`)
       .then(() => fs.unlink(`${TAG_PATH}/${tagName}`))
       .catch(() => false);
-    if (!filePath) tagQueue.push(tag);
-    // if url differs, add to queue and delete old tag
+    if (!files) tagQueue.push(tag);
+    // if url differs, add to queue
     if (!oldTags.find((oldTag) => oldTag.image_path === tag.image_path)) {
-      if (filePath && DELETE_EXISTING == "TRUE") fs.unlink(filePath);
-      tagQueue.push(tag);
+      if (files && DELETE_EXISTING == "TRUE") tagQueue.push(tag);
     }
   }
   fs.rename(TEMP_TAG_FILE_PATH, TAG_FILE_PATH);
@@ -130,6 +127,7 @@ async function main() {
       const url = tag.image_path;
       await downloadFile(url, fileName);
       // rename file extension
+      // ovewrites files of existing type, leaves previous types alone
       const extFileName = await renameFileExt(fileName);
       // push to tag inventory
       tagInventory.push({ name: tag.name, filename: extFileName });
