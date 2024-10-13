@@ -74,7 +74,7 @@ const cleanFileName = (filename) =>
 
 const saniTagExports = (tagExports) =>
   // remove trailing `./` and reduce to basename
-  deduped.map((tag) => ({ name: tag.name, filename: tag.filename.split("/").pop() }));
+  tagExports.map((tag) => ({ name: tag.name, filename: tag.filename.split("/").pop() }));
 
 const findFiles = async(tagName) => {
   const files = [];
