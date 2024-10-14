@@ -7,7 +7,6 @@ const APIKEY = process.env.STASH_APIKEY;
 const STASH_URL = process.env.STASH_URL;
 const TAG_PATH = process.env.TAG_PATH || "./tags";
 const CACHE_PATH = process.env.CACHE_PATH || "./cache";
-const DELETE_EXISTING = process.env.DELETE_EXISTING || false;
 const IMG_FILETYPES = ["jpg", "png", "webp", "svg"];
 const VID_FILETYPES = ["mp4", "webm"];
 const TAG_FILE_PATH = `${CACHE_PATH}/tags.json`;
@@ -131,9 +130,11 @@ async function main() {
       .catch(() => false);
     if (!hasFiles) tagQueue.push(tag);
     // if url differs, add to queue
-    if (!oldTags.find((oldTag) => oldTag.image_path === tag.image_path)) {
-      if (hasFiles && DELETE_EXISTING == "TRUE") tagQueue.push(tag);
-    }
+    const oldtag = oldTags.find((oldTag) => oldTag.id === tag.id);
+    // if DNE, add to queue
+    if (!oldtag) tagQueue.push(tag);
+    // else, check if updated_at differs
+    if (oldtag && oldtag.image_path !== tag.image_path) tagQueue.push(tag);
   }
   fs.rename(TEMP_TAG_FILE_PATH, TAG_FILE_PATH);
   console.log("Tag queue length:", tagQueue.length);
