@@ -2,6 +2,7 @@ import axios from "axios";
 import fs from "fs/promises";
 import * as https from "https";
 import { fileTypeFromFile } from "file-type";
+import cliProgress from "cli-progress";
 
 const APIKEY = process.env.STASH_APIKEY;
 const STASH_URL = process.env.STASH_URL;
@@ -9,8 +10,7 @@ const TAG_PATH = process.env.TAG_PATH || "./tags";
 const CACHE_PATH = process.env.CACHE_PATH || "./cache";
 const IMG_FILETYPES = ["jpg", "png", "webp", "svg"];
 const VID_FILETYPES = ["mp4", "webm"];
-const TAG_FILE_PATH = `${CACHE_PATH}/tags.json`;
-const TEMP_TAG_FILE_PATH = `${CACHE_PATH}/temp-tags.json`;
+const ETAG_FILE_PATH = `${CACHE_PATH}/etags.json`;
 const TAG_EXPORT_PATH = process.env.TAG_EXPORT_PATH || `${CACHE_PATH}/tags-export.json`;
 const EXCLUDE_PREFIX = ["r:", "c:", ".", "stashdb", "Figure", "["]
 
@@ -41,14 +41,19 @@ async function getAllTags() {
   return response.data.data.findTags.tags;
 }
 
-async function downloadFile(url, filename) {
+async function downloadFile(url, filename, etagMap) {
+  const etag = etagMap.get(url);
   const response = await agent.get(url, {
     method: "GET",
     responseType: "arraybuffer",
     responseEncoding: "binary",
+    headers: {
+      "If-None-Match": etag
+    }
   }).catch(err => err.response);
-  const bufferData = Buffer.from(response.data, "binary");
-  return await fs.writeFile(filename, bufferData);
+  const etagHeader = response.headers["etag"];
+  if (etagHeader) etagMap.set(url, etagHeader);
+  return response
 }
 
 async function renameFileExt(filename) {
@@ -98,20 +103,27 @@ const findFiles = async(tagName, searcharr) => {
 
 // main function
 async function main() {
+  const bar = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
   // create tag inventory
+  let skipped = 0;
+  let downloaded = 0;
   const tagInventory = {};
+  // load etags map
+  const etags = await fs.access(ETAG_FILE_PATH)
+    .then(async () => JSON.parse(await fs.readFile(ETAG_FILE_PATH)))
+    .catch(() => {});
+  const etagMap = etags ? new Map(Object.entries(etags)) : new Map();
   const newTags = await getAllTags();
-  // save tags to cache
-  fs.writeFile(TEMP_TAG_FILE_PATH, JSON.stringify(newTags));
-  const oldTags = await fs.access(TAG_FILE_PATH)
-    .then(async () => JSON.parse(await fs.readFile(TAG_FILE_PATH)))
-    .catch(() => []);
-  let tagQueue = [];
+  // iterate over tags
+  bar.start(newTags.length, 0);
   for (const tag of newTags) {
+    bar.increment();
+    const url = tag.image_path;
     // skip if default
-    if (tag.image_path.endsWith("&default=true")) continue;
-    // if DNE, add to queue
+    if (url.endsWith("&default=true")) continue;
+    // set up names
     const tagName = cleanFileName(tag.name);
+    const fileName = `${TAG_PATH}/${tagName}`;
     // check for existing files
     const imgFiles = await findFiles(tagName, IMG_FILETYPES);
     const vidFiles = await findFiles(tagName, VID_FILETYPES);
@@ -121,30 +133,17 @@ async function main() {
     if (vidFiles.length > 1) {
       console.error("Multiple video files found:", vidFiles);
     }
-    const hasFiles = imgFiles.length || vidFiles.length;
     const ignore = tag.ignore_auto_tag || EXCLUDE_PREFIX.some((prefix) => tag.name.startsWith(prefix));
     tagInventory[tag.name] = { img: imgFiles[0], vid: vidFiles[0], ignore };
-    // if raw file exists, delete (erroneous or leftover)
-    fs.access(`${TAG_PATH}/${tagName}`)
-      .then(() => fs.unlink(`${TAG_PATH}/${tagName}`))
-      .catch(() => false);
-    if (!hasFiles) tagQueue.push(tag);
-    // if url differs, add to queue
-    const oldtag = oldTags.find((oldTag) => oldTag.id === tag.id);
-    // if DNE, add to queue
-    if (!oldtag) tagQueue.push(tag);
-    // else, check if updated_at differs
-    if (oldtag && oldtag.image_path !== tag.image_path) tagQueue.push(tag);
-  }
-  fs.rename(TEMP_TAG_FILE_PATH, TAG_FILE_PATH);
-  console.log("Tag queue length:", tagQueue.length);
-  for (const tag of tagQueue) {
-    try {
-      console.log(tag);
-      // download file
-      const fileName = `${TAG_PATH}/${cleanFileName(tag.name)}`;
-      const url = tag.image_path;
-      await downloadFile(url, fileName);
+    // download file
+    const response = await downloadFile(url, fileName, etagMap);
+    if (response.status == 304) {
+      skipped++;
+    } else if (response.status == 200) {
+      bar.log("Downloading tag:", tag.name);
+      downloaded++;
+      const bufferData = Buffer.from(response.data, "binary");
+      await fs.writeFile(fileName, bufferData);
       // rename file extension
       // ovewrites files of existing type, leaves previous types alone
       const extFileName = await renameFileExt(fileName);
@@ -152,10 +151,12 @@ async function main() {
       const ext = extFileName.split(".").pop()
       const fileType = VID_FILETYPES.includes(ext) ? "vid" : "img";
       tagInventory[tag.name][fileType] = extFileName;
-    } catch(err) {
-      console.error("Error downloading file:", tag, err);
     }
   }
+  bar.stop()
+  console.log("Downloaded:", downloaded, "Skipped:", skipped);
+  // write etag map
+  fs.writeFile(ETAG_FILE_PATH, JSON.stringify(Object.fromEntries(etagMap)));
   // finally, write tag inventory
   fs.writeFile(TAG_EXPORT_PATH, JSON.stringify(saniTagExports(tagInventory)));
 }
