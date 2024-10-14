@@ -32,6 +32,7 @@ async function getAllTags() {
             name
             image_path
             id
+            ignore_auto_tag
     }}}`;
   const response = await agent.post(
     STASH_URL,
@@ -121,7 +122,7 @@ async function main() {
       console.error("Multiple video files found:", vidFiles);
     }
     const hasFiles = imgFiles.length || vidFiles.length;
-    tagInventory[tag.name] = { img: imgFiles[0], vid: vidFiles[0] };
+    tagInventory[tag.name] = { img: imgFiles[0], vid: vidFiles[0], ignore: tag.ignore_auto_tag };
     // if raw file exists, delete (erroneous or leftover)
     fs.access(`${TAG_PATH}/${tagName}`)
       .then(() => fs.unlink(`${TAG_PATH}/${tagName}`))
