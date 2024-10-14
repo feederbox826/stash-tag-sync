@@ -1,8 +1,10 @@
 import axios from "axios";
 import fs from "fs/promises";
+import { createReadStream } from "fs";
 import * as https from "https";
 import { fileTypeFromFile } from "file-type";
 import cliProgress from "cli-progress";
+import crypto from "crypto";
 
 const APIKEY = process.env.STASH_APIKEY;
 const STASH_URL = process.env.STASH_URL;
@@ -40,6 +42,15 @@ async function getAllTags() {
   ).catch(err => err.response);
   return response.data.data.findTags.tags;
 }
+
+const checksumFile = (path) =>
+  new Promise((resolve, reject) => {
+    const hash = crypto.createHash("md5");
+    const stream = createReadStream(path);
+    stream.on('error', err => reject(err));
+    stream.on('data', chunk => hash.update(chunk));
+    stream.on('end', () => resolve(hash.digest('hex')));
+  });
 
 async function downloadFile(url, etagMap, force = false) {
   const etag = etagMap.get(url);
@@ -137,6 +148,11 @@ async function main() {
     tagInventory[tag.name] = { img: imgFiles[0], vid: vidFiles[0], ignore };
     // if no file, force download
     const force = !imgFiles.length && !vidFiles.length;
+    if (!force && !etagMap.has(url)) { // try forcing etag if exists
+      const forceEtag = await checksumFile(vidFiles[0] || imgFiles[0]);
+      console.log("Stuffing etag")
+      etagMap.set(url, forceEtag);
+    }
     // download file
     const response = await downloadFile(url, etagMap, force);
     if (response.status == 304) {
