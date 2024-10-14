@@ -41,14 +41,14 @@ async function getAllTags() {
   return response.data.data.findTags.tags;
 }
 
-async function downloadFile(url, filename, etagMap) {
+async function downloadFile(url, etagMap, force = false) {
   const etag = etagMap.get(url);
   const response = await agent.get(url, {
     method: "GET",
     responseType: "arraybuffer",
     responseEncoding: "binary",
     headers: {
-      "If-None-Match": etag
+      "If-None-Match": force ? "" : etag 
     }
   }).catch(err => err.response);
   const etagHeader = response.headers["etag"];
@@ -124,23 +124,25 @@ async function main() {
     // set up names
     const tagName = cleanFileName(tag.name);
     const fileName = `${TAG_PATH}/${tagName}`;
+    // if raw file exists, delete (erroneous or leftover)
+    fs.access(fileName)
+      .then(() => fs.unlink(fileName))
+      .catch(() => false);
     // check for existing files
     const imgFiles = await findFiles(tagName, IMG_FILETYPES);
     const vidFiles = await findFiles(tagName, VID_FILETYPES);
-    if (imgFiles.length > 1) {
-      console.error("Multiple image files found:", imgFiles);
-    }
-    if (vidFiles.length > 1) {
-      console.error("Multiple video files found:", vidFiles);
-    }
+    if (imgFiles.length > 1) console.error("Multiple image files found:", imgFiles);
+    if (vidFiles.length > 1) console.error("Multiple video files found:", vidFiles);
     const ignore = tag.ignore_auto_tag || EXCLUDE_PREFIX.some((prefix) => tag.name.startsWith(prefix));
     tagInventory[tag.name] = { img: imgFiles[0], vid: vidFiles[0], ignore };
+    // if no file, force download
+    const force = !imgFiles.length && !vidFiles.length;
     // download file
-    const response = await downloadFile(url, fileName, etagMap);
+    const response = await downloadFile(url, etagMap, force);
     if (response.status == 304) {
       skipped++;
     } else if (response.status == 200) {
-      bar.log("Downloading tag:", tag.name);
+      console.log(`Downloading tag: ${tag.name}`);
       downloaded++;
       const bufferData = Buffer.from(response.data, "binary");
       await fs.writeFile(fileName, bufferData);
