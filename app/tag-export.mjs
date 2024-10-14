@@ -13,6 +13,7 @@ const VID_FILETYPES = ["mp4", "webm"];
 const TAG_FILE_PATH = `${CACHE_PATH}/tags.json`;
 const TEMP_TAG_FILE_PATH = `${CACHE_PATH}/temp-tags.json`;
 const TAG_EXPORT_PATH = process.env.TAG_EXPORT_PATH || `${CACHE_PATH}/tags-export.json`;
+const EXCLUDE_PREFIX = ["r:", "c:", ".", "stashdb", "Figure", "["]
 
 // setup axios agent without TLS verification
 const agent = axios.create({
@@ -122,7 +123,8 @@ async function main() {
       console.error("Multiple video files found:", vidFiles);
     }
     const hasFiles = imgFiles.length || vidFiles.length;
-    tagInventory[tag.name] = { img: imgFiles[0], vid: vidFiles[0], ignore: tag.ignore_auto_tag };
+    const ignore = tag.ignore_auto_tag || EXCLUDE_PREFIX.some((prefix) => tag.name.startsWith(prefix));
+    tagInventory[tag.name] = { img: imgFiles[0], vid: vidFiles[0], ignore };
     // if raw file exists, delete (erroneous or leftover)
     fs.access(`${TAG_PATH}/${tagName}`)
       .then(() => fs.unlink(`${TAG_PATH}/${tagName}`))
