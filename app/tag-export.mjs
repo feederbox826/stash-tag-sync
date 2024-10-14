@@ -114,10 +114,10 @@ const findFiles = async(tagName, searcharr) => {
 
 // main function
 async function main() {
-  const bar = new cliProgress.SingleBar({}, cliProgress.Presets.shades_classic);
+  const multibar = new cliProgress.MultiBar({
+    format: " {bar} {percentage}% | {value}/{total} | {name} {last}"
+  }, cliProgress.Presets.shades_classic);
   // create tag inventory
-  let skipped = 0;
-  let downloaded = 0;
   const tagInventory = {};
   // load etags map
   const etags = await fs.access(ETAG_FILE_PATH)
@@ -126,53 +126,56 @@ async function main() {
   const etagMap = etags ? new Map(Object.entries(etags)) : new Map();
   const newTags = await getAllTags();
   // iterate over tags
-  bar.start(newTags.length, 0);
+  const length = newTags.length;
+  const totalbar = multibar.create(length, 0, { name: "Total", last: "" });
+  const dlbar = multibar.create(length, 0, { name: "Downloaded", last: "" });
+  const skipbar = multibar.create(length, 0, { name: "Skipped", last: "" });
+  const stuffbar = multibar.create(length, 0, { name: "Stuffed", last: "" });
   for (const tag of newTags) {
-    bar.increment();
+    totalbar.increment();
     const url = tag.image_path;
     // skip if default
     if (url.endsWith("&default=true")) continue;
     // set up names
-    const tagName = cleanFileName(tag.name);
-    const fileName = `${TAG_PATH}/${tagName}`;
+    const tagName = tag.name;
+    const fileName = cleanFileName(tagName);
+    const filePath = `${TAG_PATH}/${fileName}`;
     // if raw file exists, delete (erroneous or leftover)
-    fs.access(fileName)
-      .then(() => fs.unlink(fileName))
+    fs.access(filePath)
+      .then(() => fs.unlink(filePath))
       .catch(() => false);
     // check for existing files
-    const imgFiles = await findFiles(tagName, IMG_FILETYPES);
-    const vidFiles = await findFiles(tagName, VID_FILETYPES);
+    const imgFiles = await findFiles(fileName, IMG_FILETYPES);
+    const vidFiles = await findFiles(fileName, VID_FILETYPES);
     if (imgFiles.length > 1) console.error("Multiple image files found:", imgFiles);
     if (vidFiles.length > 1) console.error("Multiple video files found:", vidFiles);
-    const ignore = tag.ignore_auto_tag || EXCLUDE_PREFIX.some((prefix) => tag.name.startsWith(prefix));
-    tagInventory[tag.name] = { img: imgFiles[0], vid: vidFiles[0], ignore };
+    const ignore = tag.ignore_auto_tag || EXCLUDE_PREFIX.some((prefix) => tagName.startsWith(prefix));
+    tagInventory[tagName] = { img: imgFiles[0], vid: vidFiles[0], ignore };
     // if no file, force download
     const force = !imgFiles.length && !vidFiles.length;
     if (!force && !etagMap.has(url)) { // try forcing etag if exists
       const forceEtag = await checksumFile(vidFiles[0] || imgFiles[0]);
-      console.log("Stuffing etag")
-      etagMap.set(url, forceEtag);
+      etagMap.set(url, `"${forceEtag}"`);
+      stuffbar.increment({ last: tagName })
     }
     // download file
     const response = await downloadFile(url, etagMap, force);
     if (response.status == 304) {
-      skipped++;
+      skipbar.increment({ last: tagName });
     } else if (response.status == 200) {
-      console.log(`Downloading tag: ${tag.name}`);
-      downloaded++;
+      dlbar.increment({ last: tagName });
       const bufferData = Buffer.from(response.data, "binary");
-      await fs.writeFile(fileName, bufferData);
+      await fs.writeFile(filePath, bufferData);
       // rename file extension
       // ovewrites files of existing type, leaves previous types alone
-      const extFileName = await renameFileExt(fileName);
+      const extFileName = await renameFileExt(filePath);
       // push to tag inventory
       const ext = extFileName.split(".").pop()
       const fileType = VID_FILETYPES.includes(ext) ? "vid" : "img";
-      tagInventory[tag.name][fileType] = extFileName;
+      tagInventory[tagName][fileType] = extFileName;
     }
   }
-  bar.stop()
-  console.log("Downloaded:", downloaded, "Skipped:", skipped);
+  multibar.stop()
   // write etag map
   fs.writeFile(ETAG_FILE_PATH, JSON.stringify(Object.fromEntries(etagMap)));
   // finally, write tag inventory
