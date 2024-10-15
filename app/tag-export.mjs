@@ -112,6 +112,12 @@ const findFiles = async(tagName, searcharr) => {
   return files;
 }
 
+const getAltFiles = async(dir) =>
+  fs.readdir(dir)
+    .then(files => files
+      .map(f => f.split(".")[0].replace(/ \(\d\)/, ""))
+    ).catch(() => []);
+
 // main function
 async function main() {
   const multibar = new cliProgress.MultiBar({
@@ -131,6 +137,7 @@ async function main() {
   const dlbar = multibar.create(length, 0, { name: "Downloaded", last: "" });
   const skipbar = multibar.create(length, 0, { name: "Skipped", last: "" });
   const stuffbar = multibar.create(length, 0, { name: "Stuffed", last: "" });
+  const altFiles = await getAltFiles(`${TAG_PATH}/alt/`);
   for (const tag of newTags) {
     totalbar.increment();
     const url = tag.image_path;
@@ -147,10 +154,11 @@ async function main() {
     // check for existing files
     const imgFiles = await findFiles(fileName, IMG_FILETYPES);
     const vidFiles = await findFiles(fileName, VID_FILETYPES);
+    const alt = altFiles.includes(fileName);
     if (imgFiles.length > 1) console.error("Multiple image files found:", imgFiles);
     if (vidFiles.length > 1) console.error("Multiple video files found:", vidFiles);
     const ignore = tag.ignore_auto_tag || EXCLUDE_PREFIX.some((prefix) => tagName.startsWith(prefix));
-    tagInventory[tagName] = { img: imgFiles[0], vid: vidFiles[0], ignore };
+    tagInventory[tagName] = { img: imgFiles[0], vid: vidFiles[0], ignore, alt };
     // if no file, force download
     const force = !imgFiles.length && !vidFiles.length;
     if (!force && !etagMap.has(url)) { // try forcing etag if exists
