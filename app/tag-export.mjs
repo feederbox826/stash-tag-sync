@@ -13,8 +13,10 @@ const CACHE_PATH = process.env.CACHE_PATH || "./cache";
 const IMG_FILETYPES = ["jpg", "png", "webp", "svg"];
 const VID_FILETYPES = ["mp4", "webm"];
 const ETAG_FILE_PATH = `${CACHE_PATH}/etags.json`;
+const CACHE_FILE = `${CACHE_PATH}/cache.json`;
 const TAG_EXPORT_PATH = process.env.TAG_EXPORT_PATH || `${CACHE_PATH}/tags-export.json`;
 const EXCLUDE_PREFIX = ["r:", "c:", ".", "stashdb", "Figure", "["]
+const FORCE_DL = process.env.FORCE_DL || false;
 
 // setup axios agent without TLS verification
 const agent = axios.create({
@@ -27,9 +29,11 @@ const agent = axios.create({
 })
 
 // get all performers
-async function getAllTags() {
-  const query = `query FindTags {
-    findTags(filter: { per_page: -1 }) {
+async function getAllTags(updateTime = 0) {
+  const query = `query ($update_time: String!) {
+    findTags(filter: { per_page: -1 }
+    tag_filter: { updated_at: { modifier: GREATER_THAN,
+    value: $update_time }}) {
         tags {
             name
             image_path
@@ -38,7 +42,7 @@ async function getAllTags() {
     }}}`;
   const response = await agent.post(
     STASH_URL,
-    { query },
+    { query, variables: { update_time: updateTime } },
   ).catch(err => err.response);
   return response.data.data.findTags.tags;
 }
@@ -118,6 +122,11 @@ const getAltFiles = async(dir) =>
       .map(f => f.split(".")[0].replace(/ \(\d\)/, ""))
     ).catch(() => []);
 
+const parseFile = (filepath) =>
+  fs.access(filepath)
+    .then(async () => JSON.parse(await fs.readFile(filepath)))
+    .catch(() => {});
+
 // main function
 async function main() {
   const multibar = new cliProgress.MultiBar({
@@ -126,11 +135,14 @@ async function main() {
   // create tag inventory
   const tagInventory = {};
   // load etags map
-  const etags = await fs.access(ETAG_FILE_PATH)
-    .then(async () => JSON.parse(await fs.readFile(ETAG_FILE_PATH)))
-    .catch(() => {});
+  const etags = await parseFile(ETAG_FILE_PATH);
   const etagMap = etags ? new Map(Object.entries(etags)) : new Map();
-  const newTags = await getAllTags();
+  // populate cache
+  const cacheFile = await parseFile(CACHE_FILE);
+  const cache = cacheFile ? cacheFile : {};
+  // if cache date, get tags since then
+  const cacheTime = FORCE_DL ? 0 : cache?.update_time ?? 0
+  const newTags = await getAllTags(cacheTime);
   // iterate over tags
   const length = newTags.length;
   const totalbar = multibar.create(length, 0, { name: "Total", last: "" });
@@ -166,6 +178,11 @@ async function main() {
       etagMap.set(url, `"${forceEtag}"`);
       stuffbar.increment({ last: tagName })
     }
+    // if not forcedl, skip if exists in etags
+    if (!FORCE_DL && etagMap.has(url)) {
+      skipbar.increment({ last: tagName });
+      continue;
+    }
     // download file
     const response = await downloadFile(url, etagMap, force);
     if (response.status == 304) {
@@ -184,6 +201,9 @@ async function main() {
     }
   }
   multibar.stop()
+  // update cache update_time
+  cache.update_time = new Date().toISOString();
+  fs.writeFile(CACHE_FILE, JSON.stringify(cache));
   // write etag map
   fs.writeFile(ETAG_FILE_PATH, JSON.stringify(Object.fromEntries(etagMap)));
   // finally, write tag inventory
