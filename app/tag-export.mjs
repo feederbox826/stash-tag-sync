@@ -208,5 +208,6 @@ async function main() {
   fs.writeFile(ETAG_FILE_PATH, JSON.stringify(Object.fromEntries(etagMap)));
   // finally, write tag inventory
   fs.writeFile(TAG_EXPORT_PATH, JSON.stringify(saniTagExports(tagInventory)));
+  console.log("Tag export complete", cache.update_time);
 }
 main();
