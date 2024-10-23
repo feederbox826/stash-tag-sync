@@ -17,6 +17,7 @@ const CACHE_FILE = `${CACHE_PATH}/cache.json`;
 const TAG_EXPORT_PATH = process.env.TAG_EXPORT_PATH || `${CACHE_PATH}/tags-export.json`;
 const EXCLUDE_PREFIX = ["r:", "c:", ".", "stashdb", "Figure", "["]
 const FORCE_DL = process.env.FORCE_DL || false;
+const SKIP_CACHE = process.env.SKIP_CACHE || false;
 
 // setup axios agent without TLS verification
 const agent = axios.create({
@@ -141,7 +142,7 @@ async function main() {
   const cacheFile = await parseFile(CACHE_FILE);
   const cache = cacheFile ? cacheFile : {};
   // if cache date, get tags since then
-  const cacheTime = FORCE_DL ? 0 : cache?.update_time ?? 0
+  const cacheTime = (FORCE_DL || SKIP_CACHE) ? 0 : cache?.update_time ?? 0
   const newTags = await getAllTags(cacheTime);
   // iterate over tags
   const length = newTags.length;
