@@ -16,7 +16,7 @@ const ETAG_FILE_PATH = `${CACHE_PATH}/etags.json`;
 const CACHE_FILE = `${CACHE_PATH}/cache.json`;
 const TAG_EXPORT_PATH = process.env.TAG_EXPORT_PATH || `${CACHE_PATH}/tags-export.json`;
 const EXCLUDE_PREFIX = ["r:", "c:", ".", "stashdb", "Figure", "["]
-const FORCE_DL = process.env.FORCE_DL || false;
+const RECHECK_ETAG = process.env.RECHECK_ETAG || false;
 const SKIP_CACHE = process.env.SKIP_CACHE || false;
 
 // setup axios agent without TLS verification
@@ -142,7 +142,7 @@ async function main() {
   const cacheFile = await parseFile(CACHE_FILE);
   const cache = cacheFile ? cacheFile : {};
   // if cache date, get tags since then
-  const cacheTime = (FORCE_DL || SKIP_CACHE) ? 0 : cache?.update_time ?? 0
+  const cacheTime = (RECHECK_ETAG || SKIP_CACHE) ? 0 : cache?.update_time ?? 0
   const newTags = await getAllTags(cacheTime);
   // iterate over tags
   const length = newTags.length;
@@ -178,9 +178,7 @@ async function main() {
       const forceEtag = await checksumFile(vidFiles[0] || imgFiles[0]);
       etagMap.set(url, `"${forceEtag}"`);
       stuffbar.increment({ last: tagName })
-    }
-    // if not forcedl, skip if exists in etags
-    if (!FORCE_DL && etagMap.has(url)) {
+    } else if (!RECHECK_ETAG && etagMap.has(url)) { // if not forcedl, skip if exists in etags
       skipbar.increment({ last: tagName });
       continue;
     }
