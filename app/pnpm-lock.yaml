@@ -17,6 +17,9 @@ importers:
       file-type:
         specifier: ^19.3.0
         version: 19.6.0
+      route-serve:
+        specifier: ^2.0.2
+        version: 2.0.2
 
 packages:
 
@@ -97,6 +100,9 @@ packages:
 
   proxy-from-env@1.1.0:
     resolution: {integrity: sha512-D+zkORCbA9f1tdWRK0RaCR3GPv50cMxcrz4X8k5LTSUD1Dkw47mKJEZQNunItRTkWwgtaUSo1RVFRIG9ZXiFYg==}
+
+  route-serve@2.0.2:
+    resolution: {integrity: sha512-dtXk4lzHVkU07SCZ62TO7A93OrbcLujODKBnx0c4c7Ovvs+f57YkQ9PCsZXH3J7UwTe16DYu99X9ufENO5fCrA==}
 
   string-width@4.2.3:
     resolution: {integrity: sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g==}
@@ -183,6 +189,8 @@ snapshots:
   peek-readable@5.3.1: {}
 
   proxy-from-env@1.1.0: {}
+
+  route-serve@2.0.2: {}
 
   string-width@4.2.3:
     dependencies:

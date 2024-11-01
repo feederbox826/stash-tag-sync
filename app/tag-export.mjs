@@ -5,6 +5,7 @@ import * as https from "https";
 import { fileTypeFromFile } from "file-type";
 import cliProgress from "cli-progress";
 import crypto from "crypto";
+import rs from "route-serve";
 
 const APIKEY = process.env.STASH_APIKEY;
 const STASH_URL = process.env.STASH_URL;
@@ -147,9 +148,13 @@ async function main() {
   // iterate over tags
   const length = newTags.length;
   const totalbar = multibar.create(length, 0, { name: "Total", last: "" });
+  totalbar.update({ name: "Total" });
   const dlbar = multibar.create(length, 0, { name: "Downloaded", last: "" });
+  dlbar.update({ name: "Downloaded" });
   const skipbar = multibar.create(length, 0, { name: "Skipped", last: "" });
+  skipbar.update({ name: "Skipped" });
   const stuffbar = multibar.create(length, 0, { name: "Stuffed", last: "" });
+  stuffbar.update({ name: "Stuffed" });
   const altFiles = await getAltFiles(`${TAG_PATH}/alt/`);
   for (const tag of newTags) {
     totalbar.increment();
@@ -188,6 +193,7 @@ async function main() {
       skipbar.increment({ last: tagName });
     } else if (response.status == 200) {
       dlbar.increment({ last: tagName });
+      multibar.log("Downloading", tagName);
       const bufferData = Buffer.from(response.data, "binary");
       await fs.writeFile(filePath, bufferData);
       // rename file extension
@@ -210,3 +216,12 @@ async function main() {
   console.log("Tag export complete", cache.update_time);
 }
 main();
+
+const routes = {
+  'POST /update': async (req, res) => {
+    main();
+    res.send("Updating tag export");
+  }
+}
+const PORT = process.env.PORT || 3000;
+rs(routes).listen(PORT, () => console.log(`Listening on port ${PORT}`));
