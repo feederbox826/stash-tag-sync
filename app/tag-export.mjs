@@ -219,7 +219,7 @@ async function main() {
 main();
 
 const routes = {
-  'POST /update': async (req, res) => {
+  'GET /update': async (req, res) => {
     main();
     res.sendJson({ message: "Update started" });
   }
