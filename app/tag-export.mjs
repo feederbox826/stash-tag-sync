@@ -6,6 +6,7 @@ import { fileTypeFromFile } from "file-type";
 import cliProgress from "cli-progress";
 import crypto from "crypto";
 import rs from "route-serve";
+import cron from "node-cron";
 
 const APIKEY = process.env.STASH_APIKEY;
 const STASH_URL = process.env.STASH_URL;
@@ -220,8 +221,9 @@ main();
 const routes = {
   'POST /update': async (req, res) => {
     main();
-    res.send("Updating tag export");
+    res.sendJson({ message: "Update started" });
   }
 }
 const PORT = process.env.PORT || 3000;
 rs(routes).listen(PORT, () => console.log(`Listening on port ${PORT}`));
+cron.schedule("0 0 * * *", main);

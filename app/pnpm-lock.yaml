@@ -17,6 +17,9 @@ importers:
       file-type:
         specifier: ^19.3.0
         version: 19.6.0
+      node-cron:
+        specifier: ^3.0.3
+        version: 3.0.3
       route-serve:
         specifier: ^2.0.2
         version: 2.0.2
@@ -94,6 +97,10 @@ packages:
     resolution: {integrity: sha512-ZDY+bPm5zTTF+YpCrAU9nK0UgICYPT0QtT1NZWFv4s++TNkcgVaT0g6+4R2uI4MjQjzysHB1zxuWL50hzaeXiw==}
     engines: {node: '>= 0.6'}
 
+  node-cron@3.0.3:
+    resolution: {integrity: sha512-dOal67//nohNgYWb+nWmg5dkFdIwDm8EpeGYMekPMrngV3637lqnX0lbUcCtgibHTz6SEz7DAIjKvKDFYCnO1A==}
+    engines: {node: '>=6.0.0'}
+
   peek-readable@5.3.1:
     resolution: {integrity: sha512-GVlENSDW6KHaXcd9zkZltB7tCLosKB/4Hg0fqBJkAoBgYG2Tn1xtMgXtSUuMU9AK/gCm/tTdT8mgAeF4YNeeqw==}
     engines: {node: '>=14.16'}
@@ -123,6 +130,10 @@ packages:
   uint8array-extras@1.4.0:
     resolution: {integrity: sha512-ZPtzy0hu4cZjv3z5NW9gfKnNLjoz4y6uv4HlelAjDK7sY/xOkKZv9xK/WQpcsBB3jEybChz9DPC2U/+cusjJVQ==}
     engines: {node: '>=18'}
+
+  uuid@8.3.2:
+    resolution: {integrity: sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg==}
+    hasBin: true
 
 snapshots:
 
@@ -186,6 +197,10 @@ snapshots:
     dependencies:
       mime-db: 1.52.0
 
+  node-cron@3.0.3:
+    dependencies:
+      uuid: 8.3.2
+
   peek-readable@5.3.1: {}
 
   proxy-from-env@1.1.0: {}
@@ -213,3 +228,5 @@ snapshots:
       ieee754: 1.2.1
 
   uint8array-extras@1.4.0: {}
+
+  uuid@8.3.2: {}
