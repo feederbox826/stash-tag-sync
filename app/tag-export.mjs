@@ -132,6 +132,7 @@ const parseFile = (filepath) =>
 
 // main function
 async function main() {
+  console.log("Starting tag sync");
   const multibar = new cliProgress.MultiBar({
     format: " {bar} {percentage}% | {value}/{total} | {name} {last}"
   }, cliProgress.Presets.shades_classic);
