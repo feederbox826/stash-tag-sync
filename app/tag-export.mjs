@@ -222,7 +222,7 @@ main();
 const routes = {
   'GET /update': async (req, res) => {
     main();
-    res.sendJson({ message: "Update started" });
+    res.sendJson({ message: new Date().toTimeString() });
   }
 }
 const PORT = process.env.PORT || 3000;
