@@ -7,6 +7,7 @@ import cliProgress from "cli-progress";
 import crypto from "crypto";
 import rs from "route-serve";
 import cron from "node-cron";
+import 'dotenv/config';
 
 const APIKEY = process.env.STASH_APIKEY;
 const STASH_URL = process.env.STASH_URL;
@@ -107,6 +108,18 @@ const saniTagExports = (tagExports) => {
   return tagExports;
 }
 
+const getAllFiles = async() => {
+  const allFiles = await fs.readdir(TAG_PATH, { withFileTypes: true });
+  const allFileNames = allFiles
+  .filter(f => !f.isDirectory())
+  .map(f => {
+    const filename = f.name.split("/").pop();
+    const ext = filename.split(".").pop();
+    return `${cleanFileName(filename.split(".")[0])}.${ext}`;
+  });
+  return new Set(allFileNames);
+}
+
 const findFiles = async(tagName, searcharr) => {
   const files = [];
   for (const ext of searcharr) {
@@ -158,6 +171,8 @@ async function main() {
   const stuffbar = multibar.create(length, 0, { name: "Stuffed", last: "" });
   stuffbar.update({ name: "Stuffed" });
   const altFiles = await getAltFiles(`${TAG_PATH}/alt/`);
+  // get all files
+  const allFiles = await getAllFiles();
   for (const tag of newTags) {
     totalbar.increment();
     const url = tag.image_path;
@@ -177,6 +192,10 @@ async function main() {
     const alt = altFiles.includes(fileName);
     if (imgFiles.length > 1) console.error("Multiple image files found:", imgFiles);
     if (vidFiles.length > 1) console.error("Multiple video files found:", vidFiles);
+    // delete files from allFiles
+    for (const file of [...imgFiles, ...vidFiles]) {
+      allFiles.delete(file.split("/").pop());
+    }
     const ignore = tag.ignore_auto_tag || EXCLUDE_PREFIX.some((prefix) => tagName.startsWith(prefix));
     tagInventory[tagName] = { img: imgFiles[0], vid: vidFiles[0], ignore, alt };
     // if no file, force download
@@ -215,6 +234,12 @@ async function main() {
   fs.writeFile(ETAG_FILE_PATH, JSON.stringify(Object.fromEntries(etagMap)));
   // finally, write tag inventory
   fs.writeFile(TAG_EXPORT_PATH, JSON.stringify(saniTagExports(tagInventory)));
+  // print out extra files
+  if (SKIP_CACHE) {
+    for (const file of allFiles.values()) {
+      console.log("Extra file found:", file);
+     }
+  }
   console.log("Tag export complete", cache.update_time);
 }
 main();
