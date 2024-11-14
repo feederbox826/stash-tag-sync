@@ -2,7 +2,7 @@ import axios from "axios";
 import fs from "fs/promises";
 import { createReadStream } from "fs";
 import * as https from "https";
-import { fileTypeFromFile } from "file-type";
+import mime from 'mime/lite';
 import cliProgress from "cli-progress";
 import crypto from "crypto";
 import rs from "route-serve";
@@ -73,19 +73,6 @@ async function downloadFile(url, etagMap, force = false) {
   const etagHeader = response.headers["etag"];
   if (etagHeader) etagMap.set(url, etagHeader);
   return response
-}
-
-async function renameFileExt(filename) {
-  const type = await fileTypeFromFile(filename);
-  if (!type) {
-    console.error("File type not found:", filename);
-    return;
-  }
-  // extension overrides
-  const ext = type.ext == "xml" ? "svg" : type.ext;
-  const newname = `${filename}.${ext}`;
-  fs.rename(filename, newname);
-  return newname;
 }
 
 // win-1252 conversion from https://stackoverflow.com/a/73127563
@@ -213,15 +200,17 @@ async function main() {
     if (response.status == 304) {
       skipbar.increment({ last: tagName });
     } else if (response.status == 200) {
+      // get ext
+      const ext = mime.getExtension(response.headers["content-type"]);
       dlbar.increment({ last: tagName });
       multibar.log("Downloading", tagName);
       const bufferData = Buffer.from(response.data, "binary");
       await fs.writeFile(filePath, bufferData);
       // rename file extension
       // ovewrites files of existing type, leaves previous types alone
-      const extFileName = await renameFileExt(filePath);
+      const extFileName = `${filePath}.${ext}`;
+      fs.rename(filePath, extFileName);
       // push to tag inventory
-      const ext = extFileName.split(".").pop()
       const fileType = VID_FILETYPES.includes(ext) ? "vid" : "img";
       tagInventory[tagName][fileType] = extFileName;
     }
