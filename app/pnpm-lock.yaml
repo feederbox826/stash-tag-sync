@@ -17,6 +17,9 @@ importers:
       dotenv:
         specifier: ^16.4.5
         version: 16.4.5
+      image-size:
+        specifier: ^1.1.1
+        version: 1.1.1
       mime:
         specifier: ^4.0.4
         version: 4.0.4
@@ -71,6 +74,14 @@ packages:
     resolution: {integrity: sha512-tzN8e4TX8+kkxGPK8D5u0FNmjPUjw3lwC9lSLxxoB/+GtsJG91CO8bSWy73APlgAZzZbXEYZJuxjkHH2w+Ezhw==}
     engines: {node: '>= 6'}
 
+  image-size@1.1.1:
+    resolution: {integrity: sha512-541xKlUw6jr/6gGuk92F+mYM5zaFAc5ahphvkqvNe2bQ6gVBkd6bfrmVJ2t4KDAfikAYZyIqTnktX3i6/aQDrQ==}
+    engines: {node: '>=16.x'}
+    hasBin: true
+
+  inherits@2.0.4:
+    resolution: {integrity: sha512-k/vGaX4/Yla3WzyMCvTQOXYeIHvqOKtnqBduzTHpzpQZzAskKMhZ2K+EnBiSM9zGSoIFeMpXKxa4dYeZIQqewQ==}
+
   is-fullwidth-code-point@3.0.0:
     resolution: {integrity: sha512-zymm5+u+sCsSWyD9qNaejV3DFvhCKclKdizYaJUuHA83RLjb7nSuGnddCHGv0hk+KY7BMAlsWeK4Ueg6EV6XQg==}
     engines: {node: '>=8'}
@@ -94,6 +105,9 @@ packages:
 
   proxy-from-env@1.1.0:
     resolution: {integrity: sha512-D+zkORCbA9f1tdWRK0RaCR3GPv50cMxcrz4X8k5LTSUD1Dkw47mKJEZQNunItRTkWwgtaUSo1RVFRIG9ZXiFYg==}
+
+  queue@6.0.2:
+    resolution: {integrity: sha512-iHZWu+q3IdFZFX36ro/lKBkSvfkztY5Y7HMiPlOUjhupPcG2JMfst2KKEpu5XndviX/3UhFbRngUPNKtgvtZiA==}
 
   route-serve@2.0.2:
     resolution: {integrity: sha512-dtXk4lzHVkU07SCZ62TO7A93OrbcLujODKBnx0c4c7Ovvs+f57YkQ9PCsZXH3J7UwTe16DYu99X9ufENO5fCrA==}
@@ -146,6 +160,12 @@ snapshots:
       combined-stream: 1.0.8
       mime-types: 2.1.35
 
+  image-size@1.1.1:
+    dependencies:
+      queue: 6.0.2
+
+  inherits@2.0.4: {}
+
   is-fullwidth-code-point@3.0.0: {}
 
   mime-db@1.52.0: {}
@@ -161,6 +181,10 @@ snapshots:
       uuid: 8.3.2
 
   proxy-from-env@1.1.0: {}
+
+  queue@6.0.2:
+    dependencies:
+      inherits: 2.0.4
 
   route-serve@2.0.2: {}
 
