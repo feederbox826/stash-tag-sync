@@ -239,7 +239,8 @@ main();
 const routes = {
   'GET /update/await': async (req, res) => {
     await main();
-    res.sendJson(fs.readFileSync(TAG_EXPORT_PATH));
+    const file = await fs.readFile(TAG_EXPORT_PATH);
+    res.sendJson(file);
   },
   'GET /update': async (req, res) => {
     main();
