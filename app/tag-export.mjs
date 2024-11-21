@@ -225,7 +225,8 @@ async function main() {
   // write etag map
   fs.writeFile(ETAG_FILE_PATH, JSON.stringify(Object.fromEntries(etagMap)));
   // finally, write tag inventory
-  fs.writeFile(TAG_EXPORT_PATH, JSON.stringify(saniTagExports(tagInventory)));
+  const saniExport = saniTagExports(tagInventory);
+  fs.writeFile(TAG_EXPORT_PATH, JSON.stringify(saniExport));
   // print out extra files
   if (SKIP_CACHE) {
     for (const file of allFiles.values()) {
@@ -233,14 +234,14 @@ async function main() {
      }
   }
   console.log("Tag export complete", cache.update_time);
+  return saniTagExports(saniExport);
 }
 main();
 
 const routes = {
   'GET /update/await': async (req, res) => {
-    await main();
-    const file = await parseFile(TAG_EXPORT_PATH);
-    res.sendJson(file);
+    const result = await main();
+    res.sendJson(result);
   },
   'GET /update': async (req, res) => {
     main();
