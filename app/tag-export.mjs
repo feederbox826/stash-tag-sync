@@ -17,11 +17,9 @@ const CACHE_PATH = process.env.CACHE_PATH || "./cache";
 const IMG_FILETYPES = ["jpg", "png", "webp", "svg"];
 const VID_FILETYPES = ["mp4", "webm"];
 const ETAG_FILE_PATH = `${CACHE_PATH}/etags.json`;
-const CACHE_FILE = `${CACHE_PATH}/cache.json`;
 const TAG_EXPORT_PATH = process.env.TAG_EXPORT_PATH || `${CACHE_PATH}/tags-export.json`;
 const EXCLUDE_PREFIX = ["r:", "c:", ".", "stashdb", "Figure", "["]
 const RECHECK_ETAG = process.env.RECHECK_ETAG || false;
-const SKIP_CACHE = process.env.SKIP_CACHE || false;
 
 // setup axios agent without TLS verification
 const agent = axios.create({
@@ -34,16 +32,14 @@ const agent = axios.create({
 })
 
 // get all performers
-async function getAllTags(updateTime = 0) {
-  const query = `query ($update_time: String!) {
-    findTags(filter: { per_page: -1 }
-    tag_filter: { updated_at: { modifier: GREATER_THAN,
-    value: $update_time }}) {
-        tags {
-            name
-            image_path
-            id
-            ignore_auto_tag
+async function getAllTags() {
+  const query = `query () {
+    findTags(filter: { per_page: -1 }) {
+    tags {
+        name
+        image_path
+        id
+        ignore_auto_tag
     }}}`;
   const response = await agent.post(
     STASH_URL,
@@ -142,12 +138,7 @@ async function main() {
   // load etags map
   const etags = await parseFile(ETAG_FILE_PATH);
   const etagMap = etags ? new Map(Object.entries(etags)) : new Map();
-  // populate cache
-  const cacheFile = await parseFile(CACHE_FILE);
-  const cache = cacheFile ? cacheFile : {};
-  // if cache date, get tags since then
-  const cacheTime = (RECHECK_ETAG || SKIP_CACHE) ? 0 : cache?.update_time ?? 0
-  const newTags = await getAllTags(cacheTime);
+  const newTags = await getAllTags();
   // iterate over tags
   const length = newTags.length;
   const totalbar = multibar.create(length, 0, { name: "Total", last: "" });
@@ -219,21 +210,16 @@ async function main() {
     }
   }
   multibar.stop()
-  // update cache update_time
-  cache.update_time = new Date().toISOString();
-  fs.writeFile(CACHE_FILE, JSON.stringify(cache));
   // write etag map
   fs.writeFile(ETAG_FILE_PATH, JSON.stringify(Object.fromEntries(etagMap)));
   // finally, write tag inventory
   const saniExport = saniTagExports(tagInventory);
   fs.writeFile(TAG_EXPORT_PATH, JSON.stringify(saniExport));
   // print out extra files
-  if (SKIP_CACHE) {
-    for (const file of allFiles.values()) {
-      console.log("Extra file found:", file);
-     }
+  for (const file of allFiles.values()) {
+    console.log("Extra file found:", file);
   }
-  console.log("Tag export complete", cache.update_time);
+  console.log("Tag export complete", new Date().toISOString());
   return saniTagExports(saniExport);
 }
 main();
