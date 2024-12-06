@@ -43,7 +43,7 @@ async function getAllTags() {
     }}}`;
   const response = await agent.post(
     STASH_URL,
-    { query, variables: { update_time: updateTime } },
+    { query },
   ).catch(err => err.response);
   return response.data.data.findTags.tags;
 }
