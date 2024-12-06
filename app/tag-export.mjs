@@ -33,7 +33,7 @@ const agent = axios.create({
 
 // get all performers
 async function getAllTags() {
-  const query = `query () {
+  const query = `query {
     findTags(filter: { per_page: -1 }) {
     tags {
         name
@@ -43,7 +43,7 @@ async function getAllTags() {
     }}}`;
   const response = await agent.post(
     STASH_URL,
-    { query },
+    { query }
   ).catch(err => err.response);
   return response.data.data.findTags.tags;
 }
