@@ -37,6 +37,7 @@ async function getAllTags() {
     findTags(filter: { per_page: -1 }) {
     tags {
         name
+        aliases
         image_path
         id
         ignore_auto_tag
@@ -178,7 +179,7 @@ async function main() {
     // get image dimensions
     const dimensions = imgFiles.length ? await imageSize(`${imgFiles[0]}`) : null;
     const ignore = tag.ignore_auto_tag || EXCLUDE_PREFIX.some((prefix) => tagName.startsWith(prefix));
-    tagInventory[tagName] = { img: imgFiles[0], vid: vidFiles[0], ignore, alt, imgDimensions: dimensions };
+    tagInventory[tagName] = { img: imgFiles[0], vid: vidFiles[0], ignore, alt, imgDimensions: dimensions, aliases: tag.aliases };
     // if no file, force download
     const force = !imgFiles.length && !vidFiles.length;
     if (!force && !etagMap.has(url)) { // try forcing etag if exists
