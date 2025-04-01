@@ -1,66 +1,83 @@
 import axios from "axios";
 import fs from "fs/promises";
-import { createReadStream } from "fs";
 import * as https from "https";
 import mime from 'mime/lite';
 import cliProgress from "cli-progress";
-import crypto from "crypto";
 import rs from "route-serve";
 import cron from "node-cron";
-import { imageSize }  from "image-size";
+import { imageSizeFromFile } from "image-size/fromFile";
+import { checksumFile } from "./md5.mjs";
 import 'dotenv/config';
+import Keyv from 'keyv';
+import { KeyvFile } from 'keyv-file';
 
+// config
 const APIKEY = process.env.STASH_APIKEY;
 const STASH_URL = process.env.STASH_URL;
+const STASHDB_APIKEY = process.env.STASHDB_APIKEY;
 const TAG_PATH = process.env.TAG_PATH || "./tags";
 const CACHE_PATH = process.env.CACHE_PATH || "./cache";
 const IMG_FILETYPES = ["jpg", "png", "webp", "svg"];
 const VID_FILETYPES = ["mp4", "webm"];
-const ETAG_FILE_PATH = `${CACHE_PATH}/etags.json`;
 const TAG_EXPORT_PATH = process.env.TAG_EXPORT_PATH || `${CACHE_PATH}/tags-export.json`;
 const EXCLUDE_PREFIX = ["r:", "c:", ".", "stashdb", "Figure", "["]
 const RECHECK_ETAG = process.env.RECHECK_ETAG || false;
+const ETAG_FILE_PATH = `${CACHE_PATH}/etags.json`;
+const STASHID_FILE_PATH = `${CACHE_PATH}/stashid.json`;
+
+// keyv
+const etags = new Keyv({
+  store: new KeyvFile({
+    filename: ETAG_FILE_PATH,
+  })
+})
+
+const stashids = new Keyv({
+  store: new KeyvFile({
+    filename: STASHID_FILE_PATH,
+  })
+})
 
 // setup axios agent without TLS verification
-const agent = axios.create({
-  headers: {
-    'ApiKey': APIKEY
-  },
+const stashAgent = axios.create({
+  headers: { 'ApiKey': APIKEY },
   httpsAgent: new https.Agent({
     rejectUnauthorized: false
   })
 })
+
+const stashdbAgent = axios.create({
+  headers: { 'ApiKey': STASHDB_APIKEY },
+})
+
+async function getTagStashID(name) {
+  const query = `query ($name: String) {
+    findTag(name: $name) { id }}`
+  const variables = { name };
+  return stashdbAgent.post(
+    "https://stashdb.org/graphql",
+    { query, variables }
+  ).then(res => res.data.data.findTag?.id)
+    .catch(err => err.response);
+}
 
 // get all performers
 async function getAllTags() {
   const query = `query {
     findTags(filter: { per_page: -1 }) {
     tags {
-        name
-        aliases
-        image_path
-        id
-        ignore_auto_tag
+      name aliases image_path id ignore_auto_tag
     }}}`;
-  const response = await agent.post(
+  const response = await stashAgent.post(
     STASH_URL,
     { query }
   ).catch(err => err.response);
   return response.data.data.findTags.tags;
 }
 
-const checksumFile = (path) =>
-  new Promise((resolve, reject) => {
-    const hash = crypto.createHash("md5");
-    const stream = createReadStream(path);
-    stream.on('error', err => reject(err));
-    stream.on('data', chunk => hash.update(chunk));
-    stream.on('end', () => resolve(hash.digest('hex')));
-  });
-
-async function downloadFile(url, etagMap, force = false) {
-  const etag = etagMap.get(url);
-  const response = await agent.get(url, {
+async function downloadFile(url, force = false) {
+  const etag = await etags.get(url);
+  const response = await stashAgent.get(url, {
     method: "GET",
     responseType: "arraybuffer",
     responseEncoding: "binary",
@@ -69,7 +86,7 @@ async function downloadFile(url, etagMap, force = false) {
     }
   }).catch(err => err.response);
   const etagHeader = response.headers["etag"];
-  if (etagHeader) etagMap.set(url, etagHeader);
+  if (etagHeader) etags.set(url, etagHeader);
   return response
 }
 
@@ -123,10 +140,13 @@ const getAltFiles = async(dir) =>
       .map(f => f.split(".")[0].replace(/ \(\d\)/, ""))
     ).catch(() => []);
 
-const parseFile = (filepath) =>
-  fs.access(filepath)
-    .then(async () => JSON.parse(await fs.readFile(filepath)))
-    .catch(() => {});
+const getCachedStashID = async(tagName, stashidMap) => {
+  const cachedID = await stashids.get(tagName);
+  if (cachedID) return cachedID;
+  const stashID = await getTagStashID(tagName);
+  if (stashID) stashids.set(tagName, stashID);
+  return stashID;
+}
 
 // main function
 async function main() {
@@ -136,9 +156,7 @@ async function main() {
   }, cliProgress.Presets.shades_classic);
   // create tag inventory
   const tagInventory = {};
-  // load etags map
-  const etags = await parseFile(ETAG_FILE_PATH);
-  const etagMap = etags ? new Map(Object.entries(etags)) : new Map();
+  // get all tags
   const newTags = await getAllTags();
   // iterate over tags
   const length = newTags.length;
@@ -160,6 +178,8 @@ async function main() {
     if (url.endsWith("&default=true")) continue;
     // set up names
     const tagName = tag.name;
+    // get stashID
+    const stashID = await getCachedStashID(tagName);
     const fileName = cleanFileName(tagName);
     const filePath = `${TAG_PATH}/${fileName}`;
     // if raw file exists, delete (erroneous or leftover)
@@ -177,21 +197,26 @@ async function main() {
       allFiles.delete(file.split("/").pop());
     }
     // get image dimensions
-    const dimensions = imgFiles.length ? await imageSize(`${imgFiles[0]}`) : null;
+    const dimensions = imgFiles.length ? await imageSizeFromFile(`${imgFiles[0]}`) : null;
     const ignore = tag.ignore_auto_tag || EXCLUDE_PREFIX.some((prefix) => tagName.startsWith(prefix));
-    tagInventory[tagName] = { img: imgFiles[0], vid: vidFiles[0], ignore, alt, imgDimensions: dimensions, aliases: tag.aliases };
+    // error if not ignore and no stashid
+    if (!ignore && !stashID) {
+      console.error("No stashID found for tag:", tagName);
+    };
+    tagInventory[tagName] = { img: imgFiles[0], vid: vidFiles[0], ignore, alt, imgDimensions: dimensions, aliases: tag.aliases, stashID };
     // if no file, force download
     const force = !imgFiles.length && !vidFiles.length;
-    if (!force && !etagMap.has(url)) { // try forcing etag if exists
+    const hasEtag = Boolean(await etags.get(url));
+    if (!force && !hasEtag) { // try forcing etag if exists
       const forceEtag = await checksumFile(vidFiles[0] || imgFiles[0]);
-      etagMap.set(url, `"${forceEtag}"`);
+      etags.set(url, `"${forceEtag}"`);
       stuffbar.increment({ last: tagName })
-    } else if (!RECHECK_ETAG && etagMap.has(url)) { // if not forcedl, skip if exists in etags
+    } else if (!RECHECK_ETAG && hasEtag) { // if not forcedl, skip if exists in etags
       skipbar.increment({ last: tagName });
       continue;
     }
     // download file
-    const response = await downloadFile(url, etagMap, force);
+    const response = await downloadFile(url, force);
     if (response.status == 304) {
       skipbar.increment({ last: tagName });
     } else if (response.status == 200) {
@@ -211,8 +236,6 @@ async function main() {
     }
   }
   multibar.stop()
-  // write etag map
-  fs.writeFile(ETAG_FILE_PATH, JSON.stringify(Object.fromEntries(etagMap)));
   // finally, write tag inventory
   const saniExport = saniTagExports(tagInventory);
   fs.writeFile(TAG_EXPORT_PATH, JSON.stringify(saniExport));
