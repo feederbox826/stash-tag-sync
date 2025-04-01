@@ -1,0 +1,3 @@
+app/cache/**
+app/tags/**
+app/node_modules

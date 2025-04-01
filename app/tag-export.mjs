@@ -243,6 +243,13 @@ async function main() {
   for (const file of allFiles.values()) {
     console.log("Extra file found:", file);
   }
+  // print out tags without stashids
+  const nosttashids = Object.entries(tagInventory)
+    .filter(([_, value]) => !value.stashID && !value.ignore)
+    .map(([key, _]) => key);
+  if (nosttashids.length) {
+    console.log("Tags without stashIDs:", nosttashids);
+  }
   console.log("Tag export complete", new Date().toISOString());
   return saniTagExports(saniExport);
 }
