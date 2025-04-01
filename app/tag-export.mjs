@@ -25,19 +25,6 @@ const RECHECK_ETAG = process.env.RECHECK_ETAG || false;
 const ETAG_FILE_PATH = `${CACHE_PATH}/etags.json`;
 const STASHID_FILE_PATH = `${CACHE_PATH}/stashid.json`;
 
-// keyv
-const etags = new Keyv({
-  store: new KeyvFile({
-    filename: ETAG_FILE_PATH,
-  })
-})
-
-const stashids = new Keyv({
-  store: new KeyvFile({
-    filename: STASHID_FILE_PATH,
-  })
-})
-
 // setup axios agent without TLS verification
 const stashAgent = axios.create({
   headers: { 'ApiKey': APIKEY },
@@ -61,6 +48,11 @@ async function getTagStashID(name) {
     .catch(err => err.response);
 }
 
+const parseFile = (filepath) =>
+  fs.access(filepath)
+    .then(async () => JSON.parse(await fs.readFile(filepath)))
+    .catch(() => {});
+
 // get all performers
 async function getAllTags() {
   const query = `query {
@@ -75,8 +67,8 @@ async function getAllTags() {
   return response.data.data.findTags.tags;
 }
 
-async function downloadFile(url, force = false) {
-  const etag = await etags.get(url);
+async function downloadFile(url, etagMap, force = false) {
+  const etag = etagMap.get(url);
   const response = await stashAgent.get(url, {
     method: "GET",
     responseType: "arraybuffer",
@@ -86,7 +78,7 @@ async function downloadFile(url, force = false) {
     }
   }).catch(err => err.response);
   const etagHeader = response.headers["etag"];
-  if (etagHeader) etags.set(url, etagHeader);
+  if (etagHeader) etagMap.set(url, etagHeader);
   return response
 }
 
@@ -141,10 +133,14 @@ const getAltFiles = async(dir) =>
     ).catch(() => []);
 
 const getCachedStashID = async(tagName, stashidMap) => {
-  const cachedID = await stashids.get(tagName);
+  const cachedID = await stashidMap.get(tagName);
   if (cachedID) return cachedID;
   const stashID = await getTagStashID(tagName);
-  if (stashID) stashids.set(tagName, stashID);
+  if (stashID) {
+    stashidMap.set(tagName, stashID);
+    // write stashids map
+    fs.writeFile(STASHID_FILE_PATH, JSON.stringify(Object.fromEntries(stashidMap)));
+  }
   return stashID;
 }
 
@@ -156,6 +152,12 @@ async function main() {
   }, cliProgress.Presets.shades_classic);
   // create tag inventory
   const tagInventory = {};
+  // load etags map
+  const etags = await parseFile(ETAG_FILE_PATH);
+  const etagMap = etags ? new Map(Object.entries(etags)) : new Map();
+  // load stashids map
+  const stashids = await parseFile(STASHID_FILE_PATH);
+  const stashidMap = stashids ? new Map(Object.entries(stashids)) : new Map();
   // get all tags
   const newTags = await getAllTags();
   // iterate over tags
@@ -179,7 +181,7 @@ async function main() {
     // set up names
     const tagName = tag.name;
     // get stashID
-    const stashID = await getCachedStashID(tagName);
+    const stashID = await getCachedStashID(tagName, stashidMap);
     const fileName = cleanFileName(tagName);
     const filePath = `${TAG_PATH}/${fileName}`;
     // if raw file exists, delete (erroneous or leftover)
@@ -206,17 +208,17 @@ async function main() {
     tagInventory[tagName] = { img: imgFiles[0], vid: vidFiles[0], ignore, alt, imgDimensions: dimensions, aliases: tag.aliases, stashID };
     // if no file, force download
     const force = !imgFiles.length && !vidFiles.length;
-    const hasEtag = Boolean(await etags.get(url));
+    const hasEtag = etagMap.has(url);
     if (!force && !hasEtag) { // try forcing etag if exists
       const forceEtag = await checksumFile(vidFiles[0] || imgFiles[0]);
-      etags.set(url, `"${forceEtag}"`);
+      etagMap.set(url, `"${forceEtag}"`);
       stuffbar.increment({ last: tagName })
     } else if (!RECHECK_ETAG && hasEtag) { // if not forcedl, skip if exists in etags
       skipbar.increment({ last: tagName });
       continue;
     }
     // download file
-    const response = await downloadFile(url, force);
+    const response = await downloadFile(url, etagMap, force);
     if (response.status == 304) {
       skipbar.increment({ last: tagName });
     } else if (response.status == 200) {
@@ -236,6 +238,8 @@ async function main() {
     }
   }
   multibar.stop()
+  // write etags map
+  fs.writeFile(ETAG_FILE_PATH, JSON.stringify(Object.fromEntries(etagMap)));
   // finally, write tag inventory
   const saniExport = saniTagExports(tagInventory);
   fs.writeFile(TAG_EXPORT_PATH, JSON.stringify(saniExport));
