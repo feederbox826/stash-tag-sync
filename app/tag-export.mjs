@@ -8,8 +8,6 @@ import cron from "node-cron";
 import { imageSizeFromFile } from "image-size/fromFile";
 import { checksumFile } from "./md5.mjs";
 import 'dotenv/config';
-import Keyv from 'keyv';
-import { KeyvFile } from 'keyv-file';
 
 // config
 const APIKEY = process.env.STASH_APIKEY;
