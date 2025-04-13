@@ -37,12 +37,13 @@ const stashdbAgent = axios.create({
 
 async function getTagStashID(name) {
   const query = `query ($name: String) {
-    findTag(name: $name) { id }}`
+    findTag(name: $name) { id deleted }}`
   const variables = { name };
   return stashdbAgent.post(
     "https://stashdb.org/graphql",
     { query, variables }
-  ).then(res => res.data.data.findTag?.id)
+  ).then(res => res.data.data.findTag)
+    .then(data => data.deleted ? null : data.id)
     .catch(err => err.response);
 }
 
@@ -137,7 +138,7 @@ const getCachedStashID = async(tagName, stashidMap) => {
   if (stashID) {
     stashidMap.set(tagName, stashID);
     // write stashids map
-    fs.writeFile(STASHID_FILE_PATH, JSON.stringify(Object.fromEntries(stashidMap)));
+    fs.writeFile(STASHID_FILE_PATH, JSON.stringify(Object.fromEntries(stashidMap), null, 2));
   }
   return stashID;
 }
