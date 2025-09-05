@@ -36,7 +36,7 @@ const stashdbAgent = axios.create({
 })
 
 async function getTagStashID(name) {
-  const query = `query ($name: String) {
+  const query = `query ($name: String!) {
     findTagOrAlias(name: $name) { id deleted }}`
   const variables = { name };
   return stashdbAgent.post(
