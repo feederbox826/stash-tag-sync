@@ -204,7 +204,7 @@ async function main() {
     if (!ignore && !stashID) {
       console.error("No stashID found for tag:", tagName);
     };
-    tagInventory[tagName] = { img: imgFiles[0], vid: vidFiles[0], ignore, alt, imgDimensions: dimensions, aliases: tag.aliases, stashID };
+    tagInventory[tagName] = { name: fileName, img: imgFiles[0], vid: vidFiles[0], ignore, alt, imgDimensions: dimensions, aliases: tag.aliases, stashID };
     // if no file, force download
     const force = !imgFiles.length && !vidFiles.length;
     const hasEtag = etagMap.has(url);
