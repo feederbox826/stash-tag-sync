@@ -37,12 +37,12 @@ const stashdbAgent = axios.create({
 
 async function getTagStashID(name) {
   const query = `query ($name: String) {
-    findTag(name: $name) { id deleted }}`
+    findTagOrAlias(name: $name) { id deleted }}`
   const variables = { name };
   return stashdbAgent.post(
     "https://stashdb.org/graphql",
     { query, variables }
-  ).then(res => res.data.data.findTag)
+  ).then(res => res.data.data.findTagOrAlias)
     .then(data => data.deleted ? null : data.id)
     .catch(err => err.response);
 }
