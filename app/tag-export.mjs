@@ -98,8 +98,8 @@ const getAltFiles = async(dir) =>
 // main function
 async function main() {
   console.log("Starting tag sync");
-  const multibar = new cliProgress.MultiBar({
-    format: " {bar} {percentage}% | {value}/{total} | {name} {last}"
+  const progress = new cliProgress.SingleBar({
+    format: " {bar} {percentage}% | {value}/{total}"
   }, cliProgress.Presets.shades_classic);
   // create tag inventory
   const tagInventory = {};
@@ -107,15 +107,12 @@ async function main() {
   const newTags = await getAllTags();
   // iterate over tags
   const length = newTags.length;
-  const totalbar = multibar.create(length, 0, { name: "Total", last: "" });
-  totalbar.update({ name: "Total" });
-  const skipbar = multibar.create(length, 0, { name: "Skipped", last: "" });
-  skipbar.update({ name: "Skipped" });
+  progress.start(length, 0);
   const altFiles = await getAltFiles(`${TAG_PATH}/alt/`);
   // get all files
   const allFiles = await getAllFiles();
   for (const tag of newTags) {
-    totalbar.increment();
+    progress.increment();
     const url = tag.image_path;
     // skip if default
     if (url.endsWith("&default=true")) continue;
@@ -148,7 +145,6 @@ async function main() {
     };
     tagInventory[tagName] = { img: imgFiles[0], vid: vidFiles[0], ignore, alt, imgDimensions: dimensions, aliases: tag.aliases, stashID };
   }
-  multibar.stop()
   // finally, write tag inventory
   const saniExport = saniTagExports(tagInventory);
   fs.writeFile(TAG_EXPORT_PATH, JSON.stringify(saniExport));
