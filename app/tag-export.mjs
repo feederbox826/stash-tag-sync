@@ -98,7 +98,7 @@ const getAltFiles = async(dir) =>
 
 const getStashDBTotal = async() => axios.post(
   STASHDB_URL,
-  { query: `queryTags(input: { page: 1 }) { count }` },
+  { query: `query { queryTags(input: { page: 1 }) { count }}` },
   { headers: { 'ApiKey': process.env.STASHDB_APIKEY }}
 ).then(res => res.data.data.queryTags.count)
 
