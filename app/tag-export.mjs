@@ -15,6 +15,7 @@ const CACHE_PATH = process.env.CACHE_PATH || "./cache";
 const IMG_FILETYPES = ["jpg", "png", "webp", "svg"];
 const VID_FILETYPES = ["mp4", "webm"];
 const TAG_EXPORT_PATH = process.env.TAG_EXPORT_PATH || `${CACHE_PATH}/tags-export.json`;
+const STATS_EXPORT_PATH = process.env.STATS_EXPORT_PATH || `${CACHE_PATH}/stats-export.json`;
 const EXCLUDE_PREFIX = ["r:", "c:", ".", "stashdb", "Figure", "["]
 
 const STASHDB_URL = "https://stashdb.org/graphql"
@@ -95,6 +96,12 @@ const getAltFiles = async(dir) =>
       .map(f => f.split(".")[0].replace(/ \(\d\)/, ""))
     ).catch(() => []);
 
+const getStashDBTotal = async() => axios.post(
+  STASHDB_URL,
+  { query: `queryTags(input: { page: 1 }) { count }` },
+  { headers: { 'ApiKey': process.env.STASHDB_APIKEY }}
+).then(res => res.data.data.queryTags.count)
+
 // main function
 async function main() {
   console.log("Starting tag sync");
@@ -148,6 +155,16 @@ async function main() {
   // finally, write tag inventory
   const saniExport = saniTagExports(tagInventory);
   fs.writeFile(TAG_EXPORT_PATH, JSON.stringify(saniExport));
+  // add stats export
+  const eligible = Object.values(tagInventory).filter(t => !t.ignore);
+  const stashdb_total = await getStashDBTotal();
+  const statsExport = {
+    generated_at: new Date().toISOString(),
+    stashdb_total,
+    total: Object.keys(eligible).length,
+    incomplete: Object.values(eligible).filter(t => !t.img || !t.vid).length,
+  };
+  fs.writeFile(STATS_EXPORT_PATH, JSON.stringify(statsExport));
   // print out extra files
   for (const file of allFiles.values()) {
     console.log("Extra file found:", file);
