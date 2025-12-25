@@ -162,7 +162,9 @@ async function main() {
     generated_at: new Date().toISOString(),
     stashdb_total,
     total: Object.keys(eligible).length,
-    incomplete: Object.values(eligible).filter(t => !t.img || !t.vid).length,
+    both: eligible.filter(t => t.img && t.vid).length,
+    img: eligible.filter(t => t.img && !t.vid).length,
+    vid: eligible.filter(t => !t.img && t.vid).length,
   };
   fs.writeFile(STATS_EXPORT_PATH, JSON.stringify(statsExport));
   // print out extra files
